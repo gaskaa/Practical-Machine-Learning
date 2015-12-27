@@ -1,0 +1,102 @@
+---
+title: "Practical Machine Learning Course Project"
+date: "December 27, 2015"
+output: html_document
+---
+##Introduction
+This report uses [data](http://groupware.les.inf.puc-rio.br/har) gathered from devices such as Jawbone Up, Nike FuelBand, and Fitbit to predict the how well a person performs an exercise. Six participants performed barbell lifts correctly and incorrectly in five different ways while accelerometers on the belt, forearm, arm, and dumbell collected data. The five exercise classes include: 
+
+Exactly according to the specification (Class A)
+
+Throwing the elbows to the front (Class B)
+
+Lifting the dumbbell only halfway (Class C)
+
+Lowering the dumbbell only halfway (Class D)
+
+Throwing the hips to the front (Class E)
+
+Only in class A was the exercise performed correctly. The existing training data set was split into a new training and testing set and a random forest model with cross-validation was used to predict the exercise class. The random forest model was 99.3% accurate, and predicted 20 cases in the testing set correctly. 
+
+##Loading and Pre-Processing the Data
+First, load any required packages and set the working directory. 
+```{r, message=FALSE, warning=FALSE}
+setwd("~/Desktop/Practical-Machine-Learning") #Set working directory
+#Load packages
+library(RGtk2)
+library(caret)              
+library(randomForest)
+#library(rattle)
+```
+
+Next, download the testing and training datasets and load them into R.
+```{r, cache=TRUE}
+#Download the testing and training data
+url_training <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url_testing <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url_training, "training.csv", method="curl")
+download.file(url_testing, "testing.csv", method="curl")
+#Read the testing and training data into R
+training_data <- read.csv("training.csv")
+testing_data <- read.csv("testing.csv")
+#Look at the structure of the training data set
+str(training_data)
+```
+After looking at the training data, some of the variables continan many missing values and are unrealated to the movement. These are taken out here.
+```{r}
+training_data <- training_data[,c(8:11, 37:49, 60:68, 84:86, 102, 113:124, 140, 151:160)]
+dim(training_data)
+```
+Now the dataset contains only 53 variable.
+
+##Partitioning the Training Data
+Here, the training data is partitioned into a new training and testing sets. 60% goes to the training set and 40% goes to the testing set.
+```{r}
+#Set the seed
+set.seed(12345)
+#Split the existing training data into new testing and training sets
+inTrain <- createDataPartition(y=training_data$classe, p=0.6, list=FALSE)
+training <- training_data[inTrain, ]; testing <- training_data[-inTrain,]
+#Look at the dimensions of the testing and training sets
+dim(training); dim(testing)
+```
+
+##Random Forest Prediction Model with Cross-Validation
+Although, other prediction models are avialable, random forests are usually amongst the top performing algorithms and can be very accurate. Therefore, a random forest is used to predict the exercise class variable in this data set. The caret package is used with a random forest as the model and a 3 fold cross validation.
+```{r, cache=TRUE}
+modFit <- train(classe~., data=training, method="rf", trControl=trainControl(method="cv", number=3), allowParallel=TRUE)
+modFit
+```
+
+###In-Sample Error
+```{r, cache=TRUE}
+predictions1 <- predict(modFit, newdata=training)
+confusionMatrix(predictions1, training$classe)
+```
+The in-sample accuracy is 100%.
+
+##Out-of-Sample Error
+```{r, cache=TRUE}
+predictions2 <- predict(modFit, newdata=testing)
+confusionMatrix(predictions2, testing$classe)
+```
+The out-of-sample accuracy is 99.3% (0.7% error).
+
+##Predict on the Test Set
+Here, the random forest model is used to predict 20 cases in the original testing data set. The function below (provided by Instructor) saves each of the test case results (A, B, C, D, or E) to a text file for submission to the class website. After submitting, each answer was correct.
+```{r, cache=TRUE}
+predictions_sub <- predict(modFit, testing_data)
+
+pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0("problem_id_",i,".txt")
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+}
+
+pml_write_files(predictions_sub)
+```
+
+##Conclusion
+The random forest algorithm proved to be highly accurate at predicting the exercise class. The model was over 99% accurate and correctly predicted all 20 cases in the test set. 
